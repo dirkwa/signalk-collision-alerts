@@ -1,0 +1,58 @@
+{
+  "name": "signalk-collision-alerts",
+  "version": "0.0.0",
+  "description": "Collision alerts for Signal K: CPA/TCPA warnings for nearby traffic, raised through the Notifications API",
+  "main": "plugin/index.js",
+  "types": "plugin/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write . && eslint --fix .",
+    "ci-lint": "eslint . && prettier --check .",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit -p tsconfig.eslint.json",
+    "test": "vitest run",
+    "build:all": "npm run ci-lint && npm run typecheck && npm run build && npm run test",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-category-ais",
+    "signalk-category-notifications",
+    "collision",
+    "cpa",
+    "tcpa",
+    "ais"
+  ],
+  "signalk": {
+    "displayName": "Collision Alerts",
+    "appIcon": "./icon.svg"
+  },
+  "files": [
+    "plugin/**/*",
+    "icon.svg"
+  ],
+  "engines": {
+    "node": ">=22.15.0",
+    "signalk": ">=2.31.0"
+  },
+  "dependencies": {
+    "typebox": "^1.3.34"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@signalk/server-api": "^2.33.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "prettier": "^3.0.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dirkwa/signalk-collision-alerts.git"
+  },
+  "license": "Apache-2.0"
+}
