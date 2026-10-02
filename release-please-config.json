@@ -1,7 +1,11 @@
 {
   "release-type": "node",
+  "initial-version": "0.1.0",
+  "bump-minor-pre-major": true,
   "changelog-type": "github",
   "skip-changelog": true,
   "pull-request-title-pattern": "chore: release ${version}",
-  "packages": { ".": {} }
+  "packages": {
+    ".": {}
+  }
 }
