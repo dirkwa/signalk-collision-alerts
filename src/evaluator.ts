@@ -14,6 +14,20 @@ export interface VesselNode {
   }
 }
 
+/**
+ * A vessel node, or a target from the server's Targets API dressed as one.
+ * The extra fields default to an AIS vessel's.
+ */
+export interface TargetNode extends VesselNode {
+  /** Vessel context; `null` for a target no AIS vessel is part of. */
+  context?: string | null
+  /** Signal K path the alarm points at. */
+  targetRef?: string
+  source?: string
+  /** Sensor kinds that see the target, when the server merged several. */
+  sources?: string[]
+}
+
 export interface EvaluatorOptions {
   zones: Zone[]
   /** Targets farther away than this (metres) are not evaluated. */
@@ -24,6 +38,8 @@ export interface EvaluatorOptions {
 
 export interface Evaluation {
   targetId: string
+  /** Vessel context to publish `navigation.closestApproach` on, if any. */
+  context?: string
   result: CpaResult | null
 }
 
@@ -76,8 +92,12 @@ export function formatMessage(name: string, result: CpaResult): string {
   return `Collision risk: ${name}, CPA ${nm} NM in ${minutes} min`
 }
 
+function contextOf(targetId: string, node: TargetNode | undefined): string | undefined {
+  return node?.context === null ? undefined : (node?.context ?? `vessels.${targetId}`)
+}
+
 /**
- * Evaluates every AIS target against own ship and drives the alarm sink.
+ * Evaluates every target against own ship and drives the alarm sink.
  * Holds the per-target alert level so hysteresis survives between ticks.
  */
 export class Evaluator {
@@ -90,11 +110,12 @@ export class Evaluator {
 
   /**
    * @param own own ship, or null when its own data is missing/stale
-   * @param vessels the `vessels` subtree of the data model, keyed by context id
+   * @param vessels the `vessels` subtree of the data model, or the server's
+   *   targets, keyed by id
    */
   evaluate(
     own: Track | null,
-    vessels: Record<string, VesselNode>,
+    vessels: Record<string, TargetNode>,
     selfId: string,
     nowMs: number
   ): Evaluation[] {
@@ -107,12 +128,13 @@ export class Evaluator {
       }
       const target = own ? toTrack(node, nowMs, this.options.maxAge) : null
       const result = own && target ? computeCpa(own, target) : null
+      const context = contextOf(targetId, node)
       if (!result || result.range > this.options.maxRange) {
-        evaluations.push({ targetId, result: null })
+        evaluations.push({ targetId, context, result: null })
         continue
       }
       seen.add(targetId)
-      evaluations.push({ targetId, result })
+      evaluations.push({ targetId, context, result })
 
       const level = assess(this.options.zones, result.cpa, result.tcpa, this.levels.get(targetId))
       if (level) {
@@ -144,7 +166,7 @@ export class Evaluator {
 
   private alert(
     targetId: string,
-    node: VesselNode | undefined,
+    node: TargetNode | undefined,
     level: AlertLevel,
     result: CpaResult
   ): CollisionAlert {
@@ -152,8 +174,9 @@ export class Evaluator {
       level,
       message: formatMessage(describe(targetId, node), result),
       data: {
-        targetRef: `vessels.${targetId}`,
-        source: 'ais',
+        targetRef: node?.targetRef ?? `vessels.${targetId}`,
+        source: node?.source ?? 'ais',
+        ...(node?.sources && { sources: node.sources }),
         cpa: result.cpa,
         tcpa: result.tcpa,
         range: result.range,
