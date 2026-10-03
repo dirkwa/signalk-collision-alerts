@@ -32,6 +32,7 @@ class RecordingSink implements AlarmSink {
 const own = defined(toTrack(vessel(50, 1, 0, 5), NOW, 360))
 const SELF = 'urn:mrn:imo:mmsi:111111111'
 const OTHER = 'urn:mrn:imo:mmsi:222222222'
+const THIRD = 'urn:mrn:imo:mmsi:333333333'
 
 function setup() {
   const sink = new RecordingSink()
@@ -69,6 +70,27 @@ describe('Evaluator', () => {
     expect(alert?.level).toBe('alarm')
     expect(alert?.message).toContain('Nordic Star')
     expect(alert?.data).toMatchObject({ targetRef: `vessels.${OTHER}`, source: 'ais' })
+  })
+
+  it('raises one alarm per closing target and clears each independently', () => {
+    const { sink, ev } = setup()
+    // One dead ahead, one on the starboard bow, both closing.
+    const ahead = vessel(50 + 1 / 60, 1, 180, 5, 'Nordic Star')
+    const starboard = vessel(50 + 1 / 60, 1 + 1 / 60, 225, 5, 'Baltic Wind')
+    ev.evaluate(own, { [OTHER]: ahead, [THIRD]: starboard }, SELF, NOW)
+
+    const raised = new Map(sink.calls)
+    expect([...raised.keys()]).toEqual([OTHER, THIRD])
+    expect(raised.get(OTHER)?.message).toContain('Nordic Star')
+    expect(raised.get(OTHER)?.data.targetRef).toBe(`vessels.${OTHER}`)
+    expect(raised.get(THIRD)?.message).toContain('Baltic Wind')
+    expect(raised.get(THIRD)?.data.targetRef).toBe(`vessels.${THIRD}`)
+
+    // The ship ahead drops out; the other keeps its alarm.
+    sink.calls = []
+    ev.evaluate(own, { [THIRD]: starboard }, SELF, NOW)
+    expect(sink.calls).toContainEqual([OTHER, undefined])
+    expect(sink.calls).toContainEqual([THIRD, expect.objectContaining({ level: 'alarm' })])
   })
 
   it('skips own ship', () => {
