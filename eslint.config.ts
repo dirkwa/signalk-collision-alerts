@@ -1,10 +1,11 @@
+import { defineConfig } from 'eslint/config'
 import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import eslintPluginPrettier from 'eslint-plugin-prettier/recommended'
 
-export default tseslint.config(
+export default defineConfig(
   eslint.configs.recommended,
-  ...tseslint.configs.strictTypeChecked,
+  tseslint.configs.strictTypeChecked,
   eslintPluginPrettier,
   {
     languageOptions: {
@@ -28,6 +29,6 @@ export default tseslint.config(
     }
   },
   {
-    ignores: ['plugin/**', 'node_modules/**', '**/*.config.mjs']
+    ignores: ['plugin/**', 'node_modules/**']
   }
 )
