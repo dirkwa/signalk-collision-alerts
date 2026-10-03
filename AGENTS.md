@@ -16,6 +16,9 @@ sensors raises one alarm.
 - `zones.ts` — sensitivity presets and `assess()`, the level decision with
   hysteresis.
 - `evaluator.ts` — reads the data model, keeps per-target levels, drives a sink.
+- `targets.ts` — maps the server's Targets API (`app.getTargets()`,
+  feature-detected) onto the evaluator's input; used instead of `vessels.*`
+  when the server has it.
 - `alarms.ts` — `ManagedAlarmSink` (v2 Notifications API) and `DeltaAlarmSink`
   (plain notification deltas when the server does not manage notifications).
 

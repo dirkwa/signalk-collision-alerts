@@ -3,6 +3,7 @@ import { DeltaAlarmSink, ManagedAlarmSink, type AlarmSink } from './alarms.js'
 import { Evaluator, toTrack, type Evaluation, type VesselNode } from './evaluator.js'
 import { ConfigSchema, DEFAULTS, type Config } from './config.js'
 import { PRESETS, type Zone } from './zones.js'
+import { targetNodes, type TargetsHost } from './targets.js'
 
 const PLUGIN_ID = 'signalk-collision-alerts'
 const NM = 1852
@@ -26,21 +27,29 @@ function createSink(app: ServerAPI): AlarmSink {
 export default function (app: ServerAPI): Plugin {
   let timer: ReturnType<typeof setInterval> | undefined
   let evaluator: Evaluator | undefined
+  // Contexts we published a closest approach on, so stop() can clear them.
   const published = new Set<string>()
 
   function publishClosestApproach(evaluations: Evaluation[]): void {
-    for (const { targetId, result } of evaluations) {
-      if (!result && !published.has(targetId)) {
+    // A target the server stopped reporting has no evaluation at all, so
+    // clear what we published for it as if it had gone out of range.
+    const current = new Set(evaluations.map((e) => e.context))
+    const gone = [...published]
+      .filter((context) => !current.has(context))
+      .map((context) => ({ targetId: context, context, result: null }))
+    for (const { context, result } of [...evaluations, ...gone]) {
+      // Targets seen only by radar or camera have no vessel to publish on.
+      if (!context || (!result && !published.has(context))) {
         continue
       }
       const value = result ? { distance: result.cpa, timeTo: result.tcpa } : null
       if (result) {
-        published.add(targetId)
+        published.add(context)
       } else {
-        published.delete(targetId)
+        published.delete(context)
       }
       const delta: Delta = {
-        context: `vessels.${targetId}` as Context,
+        context: context as Context,
         updates: [{ values: [{ path: 'navigation.closestApproach' as Path, value }] }]
       }
       app.handleMessage(PLUGIN_ID, delta)
@@ -50,7 +59,7 @@ export default function (app: ServerAPI): Plugin {
   return {
     id: PLUGIN_ID,
     name: 'Collision Alerts',
-    description: 'CPA/TCPA collision alerts for AIS targets',
+    description: 'CPA/TCPA collision alerts for AIS, radar and other targets',
     schema: () => ConfigSchema,
 
     start(partial: object) {
@@ -72,7 +81,12 @@ export default function (app: ServerAPI): Plugin {
             now,
             maxAge
           )
-          const vessels = (app.getPath('vessels') ?? {}) as Record<string, VesselNode>
+          // The server's merged targets, when it has them, so a boat seen on
+          // both AIS and radar raises one alarm rather than one per sensor.
+          const getTargets = (app as TargetsHost).getTargets
+          const vessels = getTargets
+            ? targetNodes(getTargets())
+            : ((app.getPath('vessels') ?? {}) as Record<string, VesselNode>)
           const evaluations = activeEvaluator.evaluate(own, vessels, app.selfId, now)
           if (config.publishClosestApproach) {
             publishClosestApproach(evaluations)
@@ -81,7 +95,11 @@ export default function (app: ServerAPI): Plugin {
           app.error(`Collision evaluation failed: ${String(err)}`)
         }
       }, config.interval * 1000)
-      app.setPluginStatus('Watching AIS targets')
+      app.setPluginStatus(
+        (app as TargetsHost).getTargets
+          ? 'Watching targets from AIS and other sensors'
+          : 'Watching AIS targets'
+      )
     },
 
     stop() {
@@ -89,7 +107,7 @@ export default function (app: ServerAPI): Plugin {
       timer = undefined
       evaluator?.stop()
       evaluator = undefined
-      publishClosestApproach([...published].map((targetId) => ({ targetId, result: null })))
+      publishClosestApproach([])
     }
   }
 }
