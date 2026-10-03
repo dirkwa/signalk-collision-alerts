@@ -88,6 +88,30 @@ describe('ManagedAlarmSink', () => {
     expect(notifications.raise).toHaveBeenCalledOnce()
   })
 
+  it('keeps a separate notification per target', () => {
+    const { app, notifications } = fakeApp()
+    const second = 'urn:mrn:imo:mmsi:333333333'
+    notifications.raise.mockImplementation(({ path }) => `id:${String(path)}` as NotificationId)
+    const sink = new ManagedAlarmSink(app, () => 0)
+    sink.set(ID, alert('alarm'))
+    sink.set(second, alert('warn'))
+    expect(notifications.raise.mock.calls.map(([options]) => options.path)).toEqual([
+      `navigation.closestApproach.${ID}`,
+      `navigation.closestApproach.${second}`
+    ])
+
+    sink.set(second, alert('alarm'))
+    expect(notifications.update).toHaveBeenCalledWith(
+      `id:navigation.closestApproach.${second}`,
+      expect.objectContaining({ state: 'alarm' })
+    )
+
+    sink.set(ID, undefined)
+    expect(notifications.clear.mock.calls).toEqual([[`id:navigation.closestApproach.${ID}`]])
+    sink.clearAll()
+    expect(notifications.clear).toHaveBeenLastCalledWith(`id:navigation.closestApproach.${second}`)
+  })
+
   it('clears on release and on clearAll', () => {
     const { app, notifications } = fakeApp()
     const sink = new ManagedAlarmSink(app, () => 0)
