@@ -28,7 +28,9 @@ export interface TargetsHost {
  *
  * The alarm points at the AIS vessel when there is one, so Freeboard finds it
  * as before; otherwise at the sensor's own record of the target (a radar
- * target path), which is what that sensor's own alarm pointed at.
+ * target path), which is what that sensor's own alarm pointed at. A sensor
+ * with no such record gets `targets.<id>`, the target's entry in the Targets
+ * API (`/signalk/v2/api/targets/<id>`).
  */
 export function targetNodes(targets: Target[]): Record<string, TargetNode> {
   const nodes: Record<string, TargetNode> = {}

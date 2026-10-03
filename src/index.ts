@@ -31,7 +31,13 @@ export default function (app: ServerAPI): Plugin {
   const published = new Set<string>()
 
   function publishClosestApproach(evaluations: Evaluation[]): void {
-    for (const { context, result } of evaluations) {
+    // A target the server stopped reporting has no evaluation at all, so
+    // clear what we published for it as if it had gone out of range.
+    const current = new Set(evaluations.map((e) => e.context))
+    const gone = [...published]
+      .filter((context) => !current.has(context))
+      .map((context) => ({ targetId: context, context, result: null }))
+    for (const { context, result } of [...evaluations, ...gone]) {
       // Targets seen only by radar or camera have no vessel to publish on.
       if (!context || (!result && !published.has(context))) {
         continue
@@ -101,9 +107,7 @@ export default function (app: ServerAPI): Plugin {
       timer = undefined
       evaluator?.stop()
       evaluator = undefined
-      publishClosestApproach(
-        [...published].map((context) => ({ targetId: context, context, result: null }))
-      )
+      publishClosestApproach([])
     }
   }
 }

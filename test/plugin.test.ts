@@ -100,6 +100,36 @@ describe('plugin on a server with the Targets API', () => {
     expect(notifications.raise).toHaveBeenCalledOnce()
     await plugin.stop()
   })
+
+  it('clears the closest approach of a vessel the server stops reporting', async () => {
+    const { app, handleMessage } = fakeApp(true)
+    const ais = {
+      id: OTHER,
+      context: `vessels.${OTHER}`,
+      position: { latitude: 50 + 1 / 60, longitude: 1 },
+      courseOverGroundTrue: Math.PI,
+      speedOverGround: 5,
+      timestamp: new Date().toISOString(),
+      sources: [{ type: 'ais', id: OTHER }]
+    }
+    let targets = [ais]
+    Object.assign(app, { getTargets: () => targets })
+    const plugin = createPlugin(app)
+    plugin.start({}, () => undefined)
+    vi.advanceTimersByTime(2000)
+    expect(sentValue(handleMessage, -1).value).not.toBeNull()
+    targets = []
+    vi.advanceTimersByTime(2000)
+    expect(handleMessage).toHaveBeenLastCalledWith(
+      'signalk-collision-alerts',
+      expect.objectContaining({ context: `vessels.${OTHER}` })
+    )
+    expect(sentValue(handleMessage, -1)).toEqual({
+      path: 'navigation.closestApproach',
+      value: null
+    })
+    await plugin.stop()
+  })
 })
 
 describe('config schema', () => {
