@@ -32,10 +32,14 @@ function fakeApp(managed: boolean) {
     setPluginStatus: vi.fn(),
     handleMessage: vi.fn<HandleMessage>(),
     getSelfPath: vi.fn(() => nav(50, 0, 5)),
-    getPath: vi.fn(() => ({
-      [SELF]: { navigation: nav(50, 0, 5) },
-      [OTHER]: { navigation: nav(50 + 1 / 60, 180, 5) }
-    }))
+    getPath: vi.fn((path: string): unknown =>
+      path === 'vessels'
+        ? {
+            [SELF]: { navigation: nav(50, 0, 5) },
+            [OTHER]: { navigation: nav(50 + 1 / 60, 180, 5) }
+          }
+        : undefined
+    )
   }
   return { app: app as unknown as ServerAPI, notifications, handleMessage: app.handleMessage }
 }
@@ -75,59 +79,20 @@ describe('plugin', () => {
   })
 })
 
-describe('plugin on a server with the Targets API', () => {
+describe('plugin with sensor targets', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('evaluates the merged targets instead of the vessels', async () => {
+  it('evaluates targets.* alongside the vessels', async () => {
     const { app, notifications } = fakeApp(true)
-    const getTargets = vi.fn(() => [
-      {
-        id: 'radar:radar-0:17',
-        position: { latitude: 50 + 1 / 60, longitude: 1 },
-        courseOverGroundTrue: Math.PI,
-        speedOverGround: 5,
-        timestamp: new Date().toISOString(),
-        sources: [{ type: 'radar', id: 'radar-0:17' }]
-      }
-    ])
-    Object.assign(app, { getTargets })
-    const plugin = createPlugin(app)
-    plugin.start({}, () => undefined)
-    vi.advanceTimersByTime(2000)
-    expect(getTargets).toHaveBeenCalled()
-    expect(app.getPath).not.toHaveBeenCalled()
-    expect(notifications.raise).toHaveBeenCalledOnce()
-    await plugin.stop()
-  })
-
-  it('clears the closest approach of a vessel the server stops reporting', async () => {
-    const { app, handleMessage } = fakeApp(true)
-    const ais = {
-      id: OTHER,
-      context: `vessels.${OTHER}`,
-      position: { latitude: 50 + 1 / 60, longitude: 1 },
-      courseOverGroundTrue: Math.PI,
-      speedOverGround: 5,
-      timestamp: new Date().toISOString(),
-      sources: [{ type: 'ais', id: OTHER }]
-    }
-    let targets = [ais]
-    Object.assign(app, { getTargets: () => targets })
-    const plugin = createPlugin(app)
-    plugin.start({}, () => undefined)
-    vi.advanceTimersByTime(2000)
-    expect(sentValue(handleMessage, -1).value).not.toBeNull()
-    targets = []
-    vi.advanceTimersByTime(2000)
-    expect(handleMessage).toHaveBeenLastCalledWith(
-      'signalk-collision-alerts',
-      expect.objectContaining({ context: `vessels.${OTHER}` })
+    const vessels = app.getPath('vessels')
+    app.getPath = vi.fn((path: string): unknown =>
+      path === 'targets' ? { 'radar:radar-0-17': { navigation: nav(50 - 1 / 60, 0, 10) } } : vessels
     )
-    expect(sentValue(handleMessage, -1)).toEqual({
-      path: 'navigation.closestApproach',
-      value: null
-    })
+    const plugin = createPlugin(app)
+    plugin.start({}, () => undefined)
+    vi.advanceTimersByTime(2000)
+    expect(notifications.raise).toHaveBeenCalledTimes(2)
     await plugin.stop()
   })
 })

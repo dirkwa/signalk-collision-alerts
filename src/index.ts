@@ -3,7 +3,7 @@ import { DeltaAlarmSink, ManagedAlarmSink, type AlarmSink } from './alarms.js'
 import { Evaluator, toTrack, type Evaluation, type VesselNode } from './evaluator.js'
 import { ConfigSchema, DEFAULTS, type Config } from './config.js'
 import { PRESETS, type Zone } from './zones.js'
-import { targetNodes, type TargetsHost } from './targets.js'
+import { targetNodes, type SensorTargetNode } from './targets.js'
 
 const PLUGIN_ID = 'signalk-collision-alerts'
 const NM = 1852
@@ -38,8 +38,7 @@ export default function (app: ServerAPI): Plugin {
       .filter((context) => !current.has(context))
       .map((context) => ({ targetId: context, context, result: null }))
     for (const { context, result } of [...evaluations, ...gone]) {
-      // Targets seen only by radar or camera have no vessel to publish on.
-      if (!context || (!result && !published.has(context))) {
+      if (!result && !published.has(context)) {
         continue
       }
       const value = result ? { distance: result.cpa, timeTo: result.tcpa } : null
@@ -81,12 +80,12 @@ export default function (app: ServerAPI): Plugin {
             now,
             maxAge
           )
-          // The server's merged targets, when it has them, so a boat seen on
-          // both AIS and radar raises one alarm rather than one per sensor.
-          const getTargets = (app as TargetsHost).getTargets
-          const vessels = getTargets
-            ? targetNodes(getTargets())
-            : ((app.getPath('vessels') ?? {}) as Record<string, VesselNode>)
+          // Radar and camera targets linked to an AIS vessel fold into it, so
+          // a boat seen on both raises one alarm rather than one per sensor.
+          const vessels = targetNodes(
+            (app.getPath('vessels') ?? {}) as Record<string, VesselNode>,
+            app.getPath('targets') as Record<string, SensorTargetNode> | undefined
+          )
           const evaluations = activeEvaluator.evaluate(own, vessels, app.selfId, now)
           if (config.publishClosestApproach) {
             publishClosestApproach(evaluations)
@@ -95,11 +94,7 @@ export default function (app: ServerAPI): Plugin {
           app.error(`Collision evaluation failed: ${String(err)}`)
         }
       }, config.interval * 1000)
-      app.setPluginStatus(
-        (app as TargetsHost).getTargets
-          ? 'Watching targets from AIS and other sensors'
-          : 'Watching AIS targets'
-      )
+      app.setPluginStatus('Watching AIS, radar and other targets')
     },
 
     stop() {

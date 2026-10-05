@@ -24,7 +24,7 @@ An alarm escalates as soon as a target enters a stricter zone, and is held until
 
 ## Radar and other sensors
 
-On a Signal K server with the Targets API, the plugin evaluates the server's merged targets instead of the AIS vessels. The server links a radar (or camera) target to the AIS vessel it is, so one ship seen by AIS and radar raises one alarm, not two, and boats with no AIS are covered too when a sensor plugin such as mayara reports them. The alarm then points at the AIS vessel when there is one, and otherwise at the sensor's own record of the target (for radar, `vessels.self.radars.<radar>.targets.<n>`); A sensor without such a record gets `targets.<target id>`, which is the target's entry in the server's Targets API (`/signalk/v2/api/targets/<target id>`). `data.sources` lists every sensor that sees it.
+The plugin also evaluates radar and camera targets that sensor plugins publish as `targets.<type>:<id>` contexts (mayara does this for ARPA targets), so boats without AIS are covered too. When a fusion plugin such as Target Fusion links a target to the AIS vessel it is (`sameAs`), the two are one boat and raise one alarm, not two. The boat then moves with whichever sensor reported last, so radar keeps tracking it after its AIS falls silent. The alarm points at the AIS vessel when there is one, and otherwise at the target's context (`targets.radar:…`); `data.sources` lists every sensor that sees it.
 
 Sensor plugins may also raise alarms of their own. For mayara, set its radar collision alarm setting to _Leave to the Collision Alerts plugin_ so a ship seen on radar does not alarm twice.
 
