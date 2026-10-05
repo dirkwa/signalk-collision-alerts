@@ -24,15 +24,18 @@ export function targetNodes(
   vessels: Record<string, VesselNode>,
   targets: Record<string, SensorTargetNode> = {}
 ): Record<string, TargetNode> {
-  const linked = new Map<string, Array<[string, SensorTargetNode]>>()
+  const members = new Map<string, Array<[string, SensorTargetNode]>>()
+  const roots = new Set<string>()
   for (const [id, node] of Object.entries(targets)) {
-    const sameAs = node.sameAs?.value
-    if (typeof sameAs === 'string') {
-      linked.set(sameAs, [...(linked.get(sameAs) ?? []), [id, node]])
+    const root = rootOf(id, vessels, targets)
+    if (root === `targets.${id}`) {
+      roots.add(id)
+    } else {
+      members.set(root, [...(members.get(root) ?? []), [id, node]])
     }
   }
-  const sourcesOf = (context: string) => (linked.get(context) ?? []).map(([id]) => typeOf(id))
-  const membersOf = (context: string) => (linked.get(context) ?? []).map(([, node]) => node)
+  const sourcesOf = (context: string) => (members.get(context) ?? []).map(([id]) => typeOf(id))
+  const nodesOf = (context: string) => (members.get(context) ?? []).map(([, node]) => node)
 
   const nodes: Record<string, TargetNode> = {}
   for (const [id, vessel] of Object.entries(vessels)) {
@@ -43,20 +46,18 @@ export function targetNodes(
         ? vessel
         : {
             ...vessel,
-            navigation: freshest([vessel, ...membersOf(context)]),
+            navigation: freshest([vessel, ...nodesOf(context)]),
             sources: ['ais', ...sources]
           }
   }
-  for (const [id, target] of Object.entries(targets)) {
-    if (typeof target.sameAs?.value === 'string') {
-      continue
-    }
+  for (const id of roots) {
+    const target = targets[id]
     const context = `targets.${id}`
     const type = typeOf(id)
     nodes[id] = {
       name: target.name ?? `${type} target ${id.slice(type.length + 1)}`,
       ...(target.mmsi !== undefined && { mmsi: target.mmsi }),
-      navigation: freshest([target, ...membersOf(context)]),
+      navigation: freshest([target, ...nodesOf(context)]),
       context,
       targetRef: context,
       source: type,
@@ -64,6 +65,43 @@ export function targetNodes(
     }
   }
   return nodes
+}
+
+/**
+ * The context that names the object a target belongs to. Links are meant to
+ * point straight at it, but a target is never dropped for a link that does
+ * not: a chain is followed to its end, and a link to a context that is gone
+ * (or a loop) leaves the last target reached as the object, so its sensor
+ * still raises the alarm.
+ */
+function rootOf(
+  id: string,
+  vessels: Record<string, VesselNode>,
+  targets: Record<string, SensorTargetNode>
+): string {
+  const visited: string[] = []
+  let current = id
+  for (;;) {
+    visited.push(current)
+    const sameAs = targets[current].sameAs?.value
+    if (typeof sameAs !== 'string') {
+      return `targets.${current}`
+    }
+    const vesselId = sameAs.startsWith('vessels.') ? sameAs.slice('vessels.'.length) : undefined
+    if (vesselId !== undefined && Object.hasOwn(vessels, vesselId)) {
+      return sameAs
+    }
+    const next = sameAs.startsWith('targets.') ? sameAs.slice('targets.'.length) : undefined
+    if (next === undefined || !Object.hasOwn(targets, next)) {
+      return `targets.${current}`
+    }
+    const loop = visited.indexOf(next)
+    if (loop !== -1) {
+      // Every target on the loop must agree on one object.
+      return `targets.${visited.slice(loop).sort()[0]}`
+    }
+    current = next
+  }
 }
 
 function typeOf(targetId: string): string {

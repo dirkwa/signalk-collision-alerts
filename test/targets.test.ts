@@ -98,6 +98,52 @@ describe('evaluating AIS vessels and sensor targets', () => {
     expect(raised[0][1]?.data).toMatchObject({ sources: ['radar', 'camera'] })
   })
 
+  it('keeps a target linked to a vessel that is gone as an object of its own', () => {
+    const { raised } = evaluate({}, { [RADAR]: linked(boat(1), `vessels.${VESSEL}`) })
+    expect(raised.map(([id]) => id)).toEqual([RADAR])
+  })
+
+  it('follows a chain of links to the vessel at its end', () => {
+    const { raised } = evaluate(
+      { [VESSEL]: boat(1) },
+      {
+        [RADAR]: linked(boat(1.01), `vessels.${VESSEL}`),
+        'camera:bow-7': linked(boat(1.02), `targets.${RADAR}`)
+      }
+    )
+    expect(raised).toHaveLength(1)
+    expect(raised[0][0]).toBe(VESSEL)
+    expect(raised[0][1]?.data).toMatchObject({ sources: ['ais', 'radar', 'camera'] })
+  })
+
+  it('groups a chain that ends at a missing context under its last target', () => {
+    const { raised } = evaluate(
+      {},
+      {
+        [RADAR]: linked(boat(1), `vessels.${VESSEL}`),
+        'camera:bow-7': linked(boat(1.01), `targets.${RADAR}`)
+      }
+    )
+    expect(raised.map(([id]) => id)).toEqual([RADAR])
+    expect(raised[0][1]?.data).toMatchObject({ sources: ['radar', 'camera'] })
+  })
+
+  it('raises one alarm for targets whose links form a loop', () => {
+    const { raised } = evaluate(
+      {},
+      {
+        [RADAR]: linked(boat(1), 'targets.camera:bow-7'),
+        'camera:bow-7': linked(boat(1.01), `targets.${RADAR}`)
+      }
+    )
+    expect(raised.map(([id]) => id)).toEqual(['camera:bow-7'])
+  })
+
+  it('does not treat inherited object properties as contexts', () => {
+    const { raised } = evaluate({}, { [RADAR]: linked(boat(1), 'vessels.constructor') })
+    expect(raised.map(([id]) => id)).toEqual([RADAR])
+  })
+
   it('ignores a target whose track was lost', () => {
     const lost: SensorTargetNode = {
       navigation: { position: { value: null, timestamp } }
