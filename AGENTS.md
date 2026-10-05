@@ -1,9 +1,8 @@
 # Signal K Collision Alerts
 
-Signal K server plugin that raises collision alarms. Today it evaluates AIS
-targets (`vessels.*` contexts); it is the collision consumer in a larger design
-where signalk-server holds one fused target picture (AIS, radar ARPA, camera
-detections) and this plugin evaluates that picture, so one ship seen by several
+Signal K server plugin that raises collision alarms. It evaluates AIS vessels
+(`vessels.*`) and radar/camera targets (`targets.*`), following the `sameAs`
+links a fusion plugin (signalk-target-fusion) sets, so one ship seen by several
 sensors raises one alarm.
 
 ## Module map (`src/`)
@@ -16,9 +15,10 @@ sensors raises one alarm.
 - `zones.ts` — sensitivity presets and `assess()`, the level decision with
   hysteresis.
 - `evaluator.ts` — reads the data model, keeps per-target levels, drives a sink.
-- `targets.ts` — maps the server's Targets API (`app.getTargets()`,
-  feature-detected) onto the evaluator's input; used instead of `vessels.*`
-  when the server has it.
+- `targets.ts` — folds `targets.*` contexts (radar, camera; the server's
+  sensor-targets convention) into the evaluator's input: a target with
+  `sameAs` joins the context it names, the rest become objects of their own,
+  each moving with its most recently reported member.
 - `alarms.ts` — `ManagedAlarmSink` (v2 Notifications API) and `DeltaAlarmSink`
   (plain notification deltas when the server does not manage notifications).
 

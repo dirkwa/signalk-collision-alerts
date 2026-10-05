@@ -15,16 +15,16 @@ export interface VesselNode {
 }
 
 /**
- * A vessel node, or a target from the server's Targets API dressed as one.
- * The extra fields default to an AIS vessel's.
+ * A vessel node, or a radar or camera target dressed as one. The extra fields
+ * default to an AIS vessel's.
  */
 export interface TargetNode extends VesselNode {
-  /** Vessel context; `null` for a target no AIS vessel is part of. */
-  context?: string | null
+  /** Context to publish `navigation.closestApproach` on. */
+  context?: string
   /** Signal K path the alarm points at. */
   targetRef?: string
   source?: string
-  /** Sensor kinds that see the target, when the server merged several. */
+  /** Sensor kinds that see the target, when several do. */
   sources?: string[]
 }
 
@@ -38,8 +38,8 @@ export interface EvaluatorOptions {
 
 export interface Evaluation {
   targetId: string
-  /** Vessel context to publish `navigation.closestApproach` on, if any. */
-  context?: string
+  /** Context to publish `navigation.closestApproach` on. */
+  context: string
   result: CpaResult | null
 }
 
@@ -92,8 +92,8 @@ export function formatMessage(name: string, result: CpaResult): string {
   return `Collision risk: ${name}, CPA ${nm} NM in ${minutes} min`
 }
 
-function contextOf(targetId: string, node: TargetNode | undefined): string | undefined {
-  return node?.context === null ? undefined : (node?.context ?? `vessels.${targetId}`)
+function contextOf(targetId: string, node: TargetNode | undefined): string {
+  return node?.context ?? `vessels.${targetId}`
 }
 
 /**
@@ -110,8 +110,7 @@ export class Evaluator {
 
   /**
    * @param own own ship, or null when its own data is missing/stale
-   * @param vessels the `vessels` subtree of the data model, or the server's
-   *   targets, keyed by id
+   * @param vessels AIS vessels and sensor targets, keyed by id
    */
   evaluate(
     own: Track | null,
