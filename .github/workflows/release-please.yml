@@ -3,6 +3,8 @@ name: Release Please
 on:
   push:
     branches: [main]
+  # Run by hand to refresh the release PR, e.g. after relabelling merged PRs.
+  workflow_dispatch:
 
 concurrency:
   group: release-please
