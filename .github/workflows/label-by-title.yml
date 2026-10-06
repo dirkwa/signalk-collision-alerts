@@ -36,6 +36,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
+      # Labels live under the issues API, so creating a missing one needs it.
+      issues: write
       pull-requests: write
     steps:
       - env:
@@ -83,6 +85,13 @@ jobs:
           if [ "$type" = build ] && [ "$scope" = deps ]; then
             grep -qxF dependencies <<< "$labels" || args+=(--add-label dependencies)
           fi
+          # `gh pr edit --add-label` fails on a label the repository does not
+          # have yet; create it first. It already existing is the usual case.
+          for ((i = 0; i < ${#args[@]}; i += 2)); do
+            if [ "${args[i]}" = --add-label ]; then
+              gh label create "${args[i+1]}" --repo "$REPO" 2>/dev/null || true
+            fi
+          done
           if [ "${#args[@]}" = 0 ]; then
             echo "#$NUMBER '$TITLE': nothing to change (${wanted:-no managed label})"
           else
