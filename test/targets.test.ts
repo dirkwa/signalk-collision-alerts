@@ -50,7 +50,7 @@ function evaluate(vessels: Record<string, VesselNode>, targets?: Record<string, 
   const evaluations = new Evaluator(
     { zones: PRESETS.coastal, maxRange: 12 * 1852, maxAge: 360 },
     sink
-  ).evaluate(own, targetNodes(vessels, targets), 'self', NOW)
+  ).evaluate(own, targetNodes(vessels, targets, NOW), 'self', NOW)
   return { raised, evaluations }
 }
 
@@ -150,5 +150,18 @@ describe('evaluating AIS vessels and sensor targets', () => {
     }
     const { raised } = evaluate({}, { [RADAR]: lost })
     expect(raised).toHaveLength(0)
+  })
+
+  it('ignores a target its sensor stopped updating a minute ago', () => {
+    const { raised } = evaluate({}, { [RADAR]: boat(1, 90_000) })
+    expect(raised).toHaveLength(0)
+  })
+
+  it('places a boat by its AIS once the radar linked to it falls silent', () => {
+    const { evaluations } = evaluate(
+      { [VESSEL]: boat(3, 90_000) },
+      { [RADAR]: linked(boat(1, 80_000), `vessels.${VESSEL}`) }
+    )
+    expect(evaluations[0].result?.range).toBeGreaterThan(2 * 1852)
   })
 })

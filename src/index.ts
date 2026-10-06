@@ -84,7 +84,8 @@ export default function (app: ServerAPI): Plugin {
           // a boat seen on both raises one alarm rather than one per sensor.
           const vessels = targetNodes(
             (app.getPath('vessels') ?? {}) as Record<string, VesselNode>,
-            app.getPath('targets') as Record<string, SensorTargetNode> | undefined
+            app.getPath('targets') as Record<string, SensorTargetNode> | undefined,
+            now
           )
           const evaluations = activeEvaluator.evaluate(own, vessels, app.selfId, now)
           if (config.publishClosestApproach) {
