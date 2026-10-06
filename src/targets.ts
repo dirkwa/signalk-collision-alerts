@@ -12,6 +12,13 @@ export interface SensorTargetNode extends VesselNode {
 type Navigation = NonNullable<VesselNode['navigation']>
 
 /**
+ * A sensor target its sensor stopped updating is ignored after this long,
+ * well before the AIS age: a radar or camera that still sees a boat reports
+ * it every few seconds.
+ */
+export const TARGET_MAX_AGE_MS = 60_000
+
+/**
  * AIS vessels and sensor targets as one object each, keyed by target id.
  *
  * A target linked to another context is folded into that object, so a boat
@@ -22,8 +29,10 @@ type Navigation = NonNullable<VesselNode['navigation']>
  */
 export function targetNodes(
   vessels: Record<string, VesselNode>,
-  targets: Record<string, SensorTargetNode> = {}
+  allTargets: Record<string, SensorTargetNode> = {},
+  nowMs: number
 ): Record<string, TargetNode> {
+  const targets = withoutSilent(allTargets, nowMs)
   const members = new Map<string, Array<[string, SensorTargetNode]>>()
   const roots = new Set<string>()
   for (const [id, node] of Object.entries(targets)) {
@@ -102,6 +111,19 @@ function rootOf(
     }
     current = next
   }
+}
+
+/** The targets, with no navigation for those whose sensor fell silent. */
+function withoutSilent(
+  targets: Record<string, SensorTargetNode>,
+  nowMs: number
+): Record<string, SensorTargetNode> {
+  const result: Record<string, SensorTargetNode> = {}
+  for (const [id, target] of Object.entries(targets)) {
+    const timeMs = Date.parse(target.navigation?.position?.timestamp ?? '')
+    result[id] = nowMs - timeMs <= TARGET_MAX_AGE_MS ? target : { ...target, navigation: undefined }
+  }
+  return result
 }
 
 function typeOf(targetId: string): string {
