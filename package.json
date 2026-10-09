@@ -5,6 +5,7 @@
   "main": "plugin/index.js",
   "types": "plugin/index.d.ts",
   "type": "module",
+  "signalk-plugin-enabled-by-default": true,
   "scripts": {
     "format": "prettier --write . && eslint --fix .",
     "ci-lint": "eslint . && prettier --check .",

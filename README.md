@@ -4,7 +4,7 @@ Warns you when another vessel is on course to pass too close. For every AIS targ
 
 ## Setup
 
-Install the plugin from the App Store, enable it, and pick an **Alert sensitivity**:
+Install the plugin from the App Store. A new installation starts on its own with the Coastal sensitivity; an installation you disabled earlier stays off until you enable it in its settings. To change the sensitivity, pick an **Alert sensitivity** there:
 
 | Sensitivity       | Warn                       | Alarm                      |
 | ----------------- | -------------------------- | -------------------------- |
